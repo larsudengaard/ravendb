@@ -5,6 +5,8 @@
 //-----------------------------------------------------------------------
 using System;
 using System.Runtime.Caching;
+using log4net;
+using log4net.Repository.Hierarchy;
 using Newtonsoft.Json.Linq;
 using Raven.Munin;
 
@@ -13,6 +15,7 @@ namespace Raven.Storage.Managed.Impl
     public class TableStorage : Munin.Database
     {
 		private readonly MemoryCache cachedSerializedDocuments = new MemoryCache(typeof(TableStorage).FullName + ".Cache");
+        private static ILog log = LogManager.GetLogger(typeof (TableStorage));
 
 		public Tuple<JObject, JObject> GetCachedDocument(string key, Guid etag)
 		{
@@ -28,7 +31,7 @@ namespace Raven.Storage.Managed.Impl
 		}
 
     	public TableStorage(IPersistentSource persistentSource)
-            : base(persistentSource)
+            : base(persistentSource, log.DebugFormat)
         {
             Details = Add(new Table("Details"));
 

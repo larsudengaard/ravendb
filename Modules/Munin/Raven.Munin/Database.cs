@@ -19,7 +19,8 @@ namespace Raven.Munin
 	public class Database : IEnumerable<Table>, IDisposable
 	{
 		private readonly IPersistentSource persistentSource;
-		private readonly List<Table> tables = new List<Table>();
+	    private readonly DebugLogger logger;
+	    private readonly List<Table> tables = new List<Table>();
 
 		public List<Table> Tables
 		{
@@ -33,12 +34,20 @@ namespace Raven.Munin
 			get { return persistentSource.DictionariesStates; }
 		}
 
-		public Database(IPersistentSource persistentSource)
+	    public delegate void DebugLogger(string message, params object[] args);
+
+	    public Database(IPersistentSource persistentSource) : this(persistentSource, (message, args) => { })
+	    {
+	        
+	    }
+
+		public Database(IPersistentSource persistentSource, DebugLogger logger)
 		{
-			this.persistentSource = persistentSource;
+		    this.persistentSource = persistentSource;
+		    this.logger = logger;
 		}
 
-		const int version = 1;
+	    const int version = 1;
 
 		public void Initialze()
 		{
@@ -56,23 +65,29 @@ namespace Raven.Munin
 				while (true)
 				{
 					long lastGoodPosition = log.Position;
+                    if (log.Position == log.Length)
+                    {
+                        logger("Reached end of file at {0}", lastGoodPosition);
+                        break; // EOF
+                    }
+				    logger("Starting to read commands at position {0}", lastGoodPosition);
 
-					if (log.Position == log.Length)
-						break;// EOF
-
-					var cmds = ReadCommands(log, lastGoodPosition);
+				    var cmds = ReadCommands(log, lastGoodPosition);
 					if (cmds == null)
 						break;
-
+				    logger("Got {0} commands", cmds.Length);
 					if (cmds.Length == 1 && cmds[0].Type == CommandType.Skip)
 					{
+					    logger("Skipping {0} bytes", cmds[0].Size);
 						log.Position += cmds[0].Size;
 						continue;
 					}
 
 					foreach (var commandForDictionary in cmds.GroupBy(x => x.DictionaryId))
 					{
-						tables[commandForDictionary.Key].ApplyCommands(commandForDictionary);
+					    var cmdsForDic = commandForDictionary.ToList();
+                        logger("Executing {0} commands for table {1}", cmdsForDic.Count, commandForDictionary.Key);
+                        tables[commandForDictionary.Key].ApplyCommands(cmdsForDic);
 					}
 				}
 			});
@@ -114,7 +129,7 @@ namespace Raven.Munin
 			}
 		}
 
-		private static Command[] ReadCommands(Stream log, long lastGoodPosition)
+		private Command[] ReadCommands(Stream log, long lastGoodPosition)
 		{
 			try
 			{
@@ -128,8 +143,9 @@ namespace Raven.Munin
 					DictionaryId = cmd.Value<int>("dicId")
 				}).ToArray();
 			}
-			catch (Exception)
+			catch (Exception e)
 			{
+			    logger("Could not read commenads at {0} because {1}, truncating to last known good position", lastGoodPosition, e);
 				log.SetLength(lastGoodPosition);//truncate log to last known good position
 				return null;
 			}
