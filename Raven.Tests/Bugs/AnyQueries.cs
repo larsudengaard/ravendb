@@ -14,7 +14,7 @@ namespace Raven.Tests.Bugs
    public class RavenDbAnyOfPropertyCollection : LocalClientTest, IDisposable
    {
        readonly IDocumentStore store;
-       DateTime now = new DateTime(2010, 10, 31);
+       readonly DateTime now = new DateTime(2010, 10, 31);
 
        public RavenDbAnyOfPropertyCollection()
        {

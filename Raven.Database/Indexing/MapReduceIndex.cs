@@ -30,8 +30,7 @@ namespace Raven.Database.Indexing
 {
 	public class MapReduceIndex : Index
 	{
-
-		public MapReduceIndex(Directory directory, string name, IndexDefinition indexDefinition, AbstractViewGenerator viewGenerator)
+        public MapReduceIndex(Directory directory, string name, IndexDefinition indexDefinition, AbstractViewGenerator viewGenerator)
 			: base(directory, name, indexDefinition, viewGenerator)
 		{
 		}
@@ -220,15 +219,21 @@ namespace Raven.Database.Indexing
 						trigger => trigger.OnIndexEntryDeleted(name, entryKey));
 				}
 				PropertyDescriptorCollection properties = null;
-				foreach (var doc in RobustEnumerationReduce(mappedResults, viewGenerator.ReduceDefinition, actions, context))
+                var anonymousObjectToLuceneDocumentConverter = new AnonymousObjectToLuceneDocumentConverter(indexDefinition);
+                var luceneDoc = new Document();
+                var reduceKeyField = new Field("__reduce_key", "dummy", Field.Store.NO, Field.Index.NOT_ANALYZED);
+                
+                foreach (var doc in RobustEnumerationReduce(mappedResults, viewGenerator.ReduceDefinition, actions, context))
 				{
 					count++;
-					var fields = GetFields(doc, ref properties).ToList();
+                    var fields = GetFields(doc, ref properties, anonymousObjectToLuceneDocumentConverter).ToList();
+                   
+                    string reduceKeyAsString = ExtractReduceKey(viewGenerator, doc);
 
-					string reduceKeyAsString = ExtractReduceKey(viewGenerator, doc);
+                    reduceKeyField.SetValue(reduceKeyAsString.ToLowerInvariant());
+				    luceneDoc.Add(reduceKeyField);
 
-					var luceneDoc = new Document();
-					luceneDoc.Add(new Field("__reduce_key", reduceKeyAsString.ToLowerInvariant(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+
 					foreach (var field in fields)
 					{
 						luceneDoc.Add(field);
@@ -281,18 +286,17 @@ namespace Raven.Database.Indexing
 			}
 		}
 
-		private IEnumerable<AbstractField> GetFields(object doc, ref PropertyDescriptorCollection properties)
+		private IEnumerable<AbstractField> GetFields(object doc, ref PropertyDescriptorCollection properties, AnonymousObjectToLuceneDocumentConverter anonymousObjectToLuceneDocumentConverter)
 		{
 			IEnumerable<AbstractField> fields;
 			if (doc is DynamicJsonObject)
 			{
-				fields = AnonymousObjectToLuceneDocumentConverter.Index(((DynamicJsonObject)doc).Inner,
-																		indexDefinition, Field.Store.YES);
+				fields = anonymousObjectToLuceneDocumentConverter.Index(((DynamicJsonObject)doc).Inner, Field.Store.YES);
 			}
 			else
 			{
 				properties = properties ?? TypeDescriptor.GetProperties(doc);
-				fields = AnonymousObjectToLuceneDocumentConverter.Index(doc, properties, indexDefinition, Field.Store.YES);
+				fields = anonymousObjectToLuceneDocumentConverter.Index(doc, properties, Field.Store.YES);
 			}
 			return fields;
 		}

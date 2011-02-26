@@ -46,10 +46,9 @@ namespace Raven.Database.Indexing
 		private readonly object writeLock = new object();
 		private volatile bool disposed;
 
-
 		protected Index(Directory directory, string name, IndexDefinition indexDefinition, AbstractViewGenerator viewGenerator)
 		{
-			if (directory == null) throw new ArgumentNullException("directory");
+		    if (directory == null) throw new ArgumentNullException("directory");
 			if (name == null) throw new ArgumentNullException("name");
 			if (indexDefinition == null) throw new ArgumentNullException("indexDefinition");
 			if (viewGenerator == null) throw new ArgumentNullException("viewGenerator");
@@ -289,7 +288,7 @@ namespace Raven.Database.Indexing
 		}
 
 		IndexWriter indexWriter;
-		private ConcurrentDictionary<string,IIndexExtension> indexExtensions = new ConcurrentDictionary<string, IIndexExtension>();
+		private readonly ConcurrentDictionary<string,IIndexExtension> indexExtensions = new ConcurrentDictionary<string, IIndexExtension>();
 
 		protected void Write(WorkContext context, Func<IndexWriter, Analyzer, bool> action)
 		{
@@ -544,9 +543,11 @@ namespace Raven.Database.Indexing
 			try
 			{
 				if(indexExtensions.Count > 0)
-					currentlyIndexDocumented.Add(luceneDoc);
+				{
+				    currentlyIndexDocumented.Add(CloneDocument(luceneDoc));
+				}
 
-				currentIndexWriter.AddDocument(luceneDoc, newAnalyzer);
+			    currentIndexWriter.AddDocument(luceneDoc, newAnalyzer);
 			}
 			finally
 			{
@@ -555,7 +556,47 @@ namespace Raven.Database.Indexing
 			}
 		}
 
-		public IIndexExtension GetExtension(string indexExtensionKey)
+	    private static Document CloneDocument(Document luceneDoc)
+	    {
+	        var clonedDocument = new Document();
+	        foreach (AbstractField field in luceneDoc.GetFields())
+	        {
+	            var numericField = field as NumericField;
+	            if(numericField != null)
+	            {
+	                var clonedNumericField = new NumericField(numericField.Name(),
+	                                                          numericField.IsStored() ? Field.Store.YES : Field.Store.NO,
+	                                                          numericField.IsIndexed());
+	                var numericValue = numericField.GetNumericValue();
+                    if(numericValue is int)
+                    {
+                        clonedNumericField.SetIntValue((int) numericValue);
+                    }
+                    if(numericValue is long)
+                    {
+                        clonedNumericField.SetLongValue((long) numericValue);
+                    }
+                    if(numericValue is double)
+                    {
+                        clonedNumericField.SetDoubleValue((double) numericValue);
+                    }
+                    if(numericValue is float)
+                    {
+                        clonedNumericField.SetFloatValue((float) numericValue);
+                    }
+	                clonedDocument.Add(clonedNumericField);
+	            }
+                else
+	            {
+	                var clonedField = new Field(field.Name(), field.BinaryValue(),
+	                                            field.IsStored() ? Field.Store.YES : Field.Store.NO);
+                    clonedDocument.Add(clonedField);
+	            }
+	        }
+	        return clonedDocument;
+	    }
+
+	    public IIndexExtension GetExtension(string indexExtensionKey)
 		{
 			IIndexExtension val;
 			indexExtensions.TryGetValue(indexExtensionKey, out val);
