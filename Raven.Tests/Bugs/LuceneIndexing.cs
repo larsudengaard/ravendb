@@ -16,10 +16,10 @@ namespace Raven.Tests.Bugs
 		public void MrsJones()
 		{
 			var dir = new RAMDirectory();
-			var analyzer = new WhitespaceAnalyzer();
+			var analyzer = new KeywordAnalyzer();
 			var writer = new IndexWriter(dir, analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
 			var document = new Lucene.Net.Documents.Document();
-			document.Add(new Field("Name", "MRS. SHABA", Field.Store.NO, Field.Index.ANALYZED_NO_NORMS));
+			document.Add(new Field("Name", "Mrs. Shaba", Field.Store.NO, Field.Index.ANALYZED_NO_NORMS));
 			writer.AddDocument(document);
 
 			writer.Close(true);
@@ -37,7 +37,7 @@ namespace Raven.Tests.Bugs
 
 			var queryParser = new QueryParser(Version.LUCENE_29, "", analyzer);
 			queryParser.SetLowercaseExpandedTerms(false);
-			var query = queryParser.Parse("Name:MRS.*");
+			var query = queryParser.Parse("Name:\"Mrs. S*\"");
 			Console.WriteLine(query);
 			var result = searcher.Search(query, 10);
 
