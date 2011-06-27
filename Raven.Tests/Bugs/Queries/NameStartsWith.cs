@@ -35,6 +35,7 @@ namespace Raven.Tests.Bugs.Queries
                 using (IDocumentSession session = documentStore.OpenSession())
                 {
                     var result1 = session.Query<User, User_Entity>()
+						.Customize(x=>x.WaitForNonStaleResultsAsOfLastWrite())
                         .Where(x => x.Name.StartsWith("Mrs"))
                         .ToArray();
                     Assert.True(result1.Length == 1);
