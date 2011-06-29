@@ -1,17 +1,23 @@
 using System;
+using System.Globalization;
 using System.Linq;
+using System.Threading;
 using Raven.Client.Embedded;
 using Raven.Client.Linq;
 using Xunit;
 
 namespace Raven.Tests.Bugs
 {
-	public class when_querying_cases_by_name : IDisposable
+	public class when_querying_cases_by_name_using_danish_collation : IDisposable
 	{
 		private readonly EmbeddableDocumentStore store;
 
-        public when_querying_cases_by_name()
+        public when_querying_cases_by_name_using_danish_collation()
         {
+            var culture = new CultureInfo("da");
+            Thread.CurrentThread.CurrentCulture = culture;
+            Thread.CurrentThread.CurrentUICulture = culture;
+
             store = new EmbeddableDocumentStore
             {
                 RunInMemory = true
@@ -49,35 +55,6 @@ namespace Raven.Tests.Bugs
         }
 
         [Fact]
-        public void can_query_names_starting_with_dad()
-        {
-            using (var session = store.OpenSession())
-            {
-                var cases = session.Query<Case>()
-                    .Customize(x => x.WaitForNonStaleResultsAsOfLastWrite())
-                    .Where(x => x.Name.StartsWith("dad")).ToList();
-
-
-				Assert.Equal(1, cases.Count);
-				Assert.Equal(new[] { "dada" }, cases.Select(x => x.Name).ToArray());
-            }
-        }
-
-        [Fact]
-        public void can_query_names_starting_with_aa()
-        {
-            using (var session = store.OpenSession())
-            {
-                var cases = session.Query<Case>()
-                    .Customize(x => x.WaitForNonStaleResultsAsOfLastWrite())
-                    .Where(x => x.Name.StartsWith("aa")).ToList();
-
-                Assert.Equal(3, cases.Count);
-				Assert.Equal(new[] { "aacb", "aaac", "aaaa" }, cases.Select(x => x.Name).ToArray());
-			}
-        }
-
-        [Fact]
         public void can_query_names_starting_with_bc()
         {
             using (var session = store.OpenSession())
@@ -100,8 +77,6 @@ namespace Raven.Tests.Bugs
 		public class Case
 		{
 			public string Name { get; set; }
-
 		}
-		
 	}
 }
